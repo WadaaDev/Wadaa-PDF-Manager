@@ -2658,6 +2658,7 @@ class App(TkinterDnD.Tk):
         offset = (0.0, 0.0)
         page_size = None
         chosen = set()
+        anchor = None
         existing = self.page_choices.get(path, '')
         if is_pdf and existing:
             try:
@@ -2814,11 +2815,18 @@ class App(TkinterDnD.Tk):
                     schedule_render()
             return 'break'
 
-        def toggle(index):
-            if index in chosen:
+        def toggle(index, shift=False):
+            nonlocal anchor
+            if shift and anchor is not None:
+                # Shift+click selects every page between the last clicked page and this one.
+                low, high = sorted((anchor, index))
+                chosen.update(range(low, high + 1))
+            elif index in chosen:
                 chosen.remove(index)
             else:
                 chosen.add(index)
+            if not (shift and anchor is not None):
+                anchor = index
             navigate(index)
 
         if is_pdf:
@@ -2884,7 +2892,7 @@ class App(TkinterDnD.Tk):
                 column = event.x // card_width
                 index = row * columns + column
                 if 0 <= column < columns and 0 <= index < length:
-                    toggle(index)
+                    toggle(index, bool(event.state & 0x0001))
 
             def wheel(delta):
                 direction = -1 if delta > 0 else 1
