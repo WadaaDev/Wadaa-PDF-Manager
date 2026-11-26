@@ -1920,6 +1920,9 @@ class App(TkinterDnD.Tk):
         style.map('Dark.Treeview.Heading', background=[('active', c(HOVER))])
         style.configure('Dark.Horizontal.TProgressbar', background=c(ACCENT), troughcolor=c(SURFACE),
                         lightcolor=c(ACCENT), darkcolor=c(ACCENT), borderwidth=0, thickness=10)
+        style.configure('Update.Horizontal.TProgressbar', background=c(ACCENT), troughcolor=c(BG),
+                        lightcolor=c(ACCENT), darkcolor=c(ACCENT), bordercolor=c(BG), borderwidth=0,
+                        thickness=3)
         style.configure('Preview.Vertical.TScrollbar', background=c(BORDER), troughcolor=c(SURFACE),
                         bordercolor=c(BORDER), lightcolor=c(BORDER), darkcolor=c(BORDER),
                         arrowcolor=c(TEXT))
@@ -2185,6 +2188,10 @@ class App(TkinterDnD.Tk):
                     ).pack(side='right', padx=(8, 0))
 
         self.button(footer, 'About & Support', self.show_about).pack(side='right', padx=(8, 0))
+        # Thin update bar: same colour as the window when idle, so it stays invisible.
+        self.update_bar = ttk.Progressbar(self.wrapper, maximum=100, mode='determinate',
+                                          style='Update.Horizontal.TProgressbar')
+        self.update_bar.pack(fill='x', pady=(6, 0))
 
     def show_about(self):
         if self.about_window is not None and self.about_window.winfo_exists():

@@ -91,7 +91,9 @@ def select_release(data, current):
     if version_key(tag) <= version_key(current):
         return None
     name = f'Wadaa PDF Manager Setup v{tag.removeprefix("v")}.exe'
-    matches = [item for item in data['assets'] if item.get('name') == name]
+    # GitHub stores spaces in asset names as dots, so accept both spellings.
+    names = {name, name.replace(' ', '.')}
+    matches = [item for item in data['assets'] if item.get('name') in names]
     if len(matches) != 1:
         raise ValueError('The release must contain exactly one matching versioned installer.')
     item = matches[0]
@@ -99,7 +101,7 @@ def select_release(data, current):
     if (type(aid) is not int or aid <= 0 or type(size) is not int or not 0 < size <= MAX_SIZE
             or not isinstance(url, str) or not allowed_url(url, True)
             or urlsplit(url).hostname != 'github.com'
-            or unquote(urlsplit(url).path) != f'{ASSET_PATH}{tag}/{name}'
+            or unquote(urlsplit(url).path) not in {f'{ASSET_PATH}{tag}/{n}' for n in names}
             or not isinstance(digest, str) or not re.fullmatch(r'sha256:[a-fA-F0-9]{64}', digest)):
         raise ValueError('The official installer lacks a valid identity, size or SHA-256 digest.')
     return ReleaseAsset(tag, aid, url, size, digest[7:].lower())
@@ -315,8 +317,15 @@ class UpdateController:
                 while True:
                     kind, value = self.events.get_nowait()
                     if kind == 'progress':
-                        self.progress['value'] = value
+                        bar = getattr(self.app, 'update_bar', None)
+                        if bar is not None:
+                            bar['value'] = value
+                        if self.dialog is not None:
+                            self.progress['value'] = value
                         continue
+                    bar = getattr(self.app, 'update_bar', None)
+                    if bar is not None:
+                        bar['value'] = 0
                     self.active = False
                     if self.dialog:
                         self.dialog.destroy()
@@ -349,7 +358,8 @@ class UpdateController:
             return
         if not manual:
             # Automatic mode: download quietly in the background, install when the app closes.
-            self.start(lambda: download(asset, self.directory, self.cancel, lambda p: None),
+            self.start(lambda: download(asset, self.directory, self.cancel,
+                                       lambda p: self.events.put(('progress', p))),
                        lambda path: setattr(self, 'pending', (path, asset)), manual=False)
             return
         if not self.app.themed_dialog('Update available', self.app.tr(
