@@ -14,7 +14,7 @@ import subprocess
 import sys
 import threading
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import ttk
 from urllib.error import URLError
 from urllib.parse import unquote, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
@@ -260,15 +260,27 @@ class UpdateController:
         self.retry = None
         self.poll = None
         self.dialog = None
+        self.pending = None
+
+    def apply_pending(self):
+        # Called when the app closes: hand the verified installer to the silent installer.
+        if self.pending is None:
+            return
+        path, asset = self.pending
+        self.pending = None
+        try:
+            handoff(path, asset)
+        except (OSError, KeyError):
+            pass
 
     def check(self, manual=False):
         if not self.enabled:
             if manual:
-                messagebox.showinfo('Updates', 'Online updates are disabled in this build.', parent=self.app)
+                self.app.info('Updates', 'Online updates are disabled in this build.')
             return
         if self.active:
             if manual:
-                self.app.status.set('An update check or download is already running.')
+                self.app.status.set(self.app.tr('An update check or download is already running.'))
             return
         if self.retry is not None:
             self.app.after_cancel(self.retry)
@@ -314,7 +326,7 @@ class UpdateController:
                         if retry and transient:
                             self.retry = self.app.after(60_000, self.check)
                         if manual:
-                            messagebox.showwarning('Updates', error, parent=self.app)
+                            self.app.themed_dialog('Updates', error)
                     elif kind == 'result' and not self.cancel.is_set():
                         complete(value)
                     return
@@ -327,43 +339,53 @@ class UpdateController:
     def offer(self, asset, manual):
         if asset is None:
             if manual:
-                messagebox.showinfo('Updates', 'You are using the latest version.', parent=self.app)
+                self.app.info('Updates', 'You are using the latest version.')
             return
         if not getattr(sys, 'frozen', False) or not any(Path(sys.executable).parent.glob('unins*.dat')):
             if manual:
-                messagebox.showinfo('Updates', f'Version {asset.version} is available. Install the app '
-                                    'with Setup to use automatic upgrades.', parent=self.app)
+                self.app.info('Updates', self.app.tr(
+                    'Version {version} is available. Install the app with Setup to use automatic upgrades.',
+                    version=asset.version))
             return
-        if not messagebox.askyesno('Update available', f'Download version {asset.version}?',
-                                   parent=self.app):
+        if not manual:
+            # Automatic mode: download quietly in the background, install when the app closes.
+            self.start(lambda: download(asset, self.directory, self.cancel, lambda p: None),
+                       lambda path: setattr(self, 'pending', (path, asset)), manual=False)
+            return
+        if not self.app.themed_dialog('Update available', self.app.tr(
+            'Download version {version}?', version=asset.version), confirm=True):
             return
         self.dialog = tk.Toplevel(self.app)
-        self.dialog.title('Downloading update')
+        def refresh_dialog():
+            self.dialog.title(self.app.tr('Downloading update'))
+            self.dialog.configure(bg=self.app.cget('background'))
+
+        self.dialog._refresh_appearance = refresh_dialog
         self.dialog.transient(self.app)
-        self.progress = ttk.Progressbar(self.dialog, maximum=100, length=240)
+        self.progress = ttk.Progressbar(self.dialog, maximum=100, length=240,
+                                        style='Dark.Horizontal.TProgressbar')
         self.progress.pack(padx=18, pady=12)
-        ttk.Button(self.dialog, text='Cancel', command=self.cancel.set).pack(pady=(0, 12))
+        self.app.button(self.dialog, 'Cancel', self.cancel.set).pack(pady=(0, 12))
         self.dialog.protocol('WM_DELETE_WINDOW', self.cancel.set)
+        self.app.style_widgets(self.dialog)
         self.start(lambda: download(asset, self.directory, self.cancel,
                                    lambda p: self.events.put(('progress', p))),
                    lambda path: self.install(path, asset), manual=True)
 
     def install(self, path, asset):
         if self.app.busy:
-            messagebox.showinfo('Updates', 'Wait for the PDF merge to finish before installing.',
-                                parent=self.app)
+            self.app.info('Updates', 'Wait for the PDF merge to finish before installing.')
             return
-        if not messagebox.askyesno('Install update', 'Close Wadaa PDF Manager and install the update?',
-                                   parent=self.app):
+        if not self.app.themed_dialog('Install update', 'Close Wadaa PDF Manager and install the update?',
+                                      confirm=True):
             return
         if not self.app.save_session():
-            messagebox.showwarning('Updates', 'The session could not be saved. The update was postponed.',
-                                   parent=self.app)
+            self.app.themed_dialog('Updates', 'The session could not be saved. The update was postponed.')
             return
         try:
             handoff(path, asset)
         except (OSError, KeyError) as exc:
-            messagebox.showerror('Updates', str(exc), parent=self.app)
+            self.app.themed_dialog('Updates', str(exc))
             return
         self.close()
         self.app.destroy()
