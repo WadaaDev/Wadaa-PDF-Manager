@@ -211,7 +211,7 @@ try {
     if ((Get-FileHash -LiteralPath $env:WADAA_INSTALLER -Algorithm SHA256).Hash -ne $env:WADAA_SHA256) {
         throw 'The installer failed the final SHA-256 check.'
     }
-    $arguments = '/SILENT /NORESTART /WADAAUPDATE=1 /DIR="' + $env:WADAA_DEST + '"'
+    $arguments = '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /WADAAUPDATE=1 /DIR="' + $env:WADAA_DEST + '"'
     $setup = Start-Process -FilePath $env:WADAA_INSTALLER -PassThru -ArgumentList $arguments
     $setup.WaitForExit()
     if ($setup.ExitCode -ne 0) { throw "Setup exited with code $($setup.ExitCode)." }

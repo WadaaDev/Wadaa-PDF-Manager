@@ -1420,6 +1420,38 @@ def export_merged_pages(jobs, destination, kind, progress):
         return total, report
 
 
+class RoundBar(tk.Canvas):
+    """Thin rounded progress bar, invisible while the value is 0."""
+    HEIGHT = 5
+
+    def __init__(self, app, parent):
+        super().__init__(parent, height=self.HEIGHT, bg=BG, highlightthickness=0, bd=0)
+        self.app = app
+        self.value = 0
+        self.bind('<Configure>', lambda event: self.redraw())
+
+    def __setitem__(self, key, val):
+        if key == 'value':
+            self.value = max(0, min(100, float(val)))
+            self.redraw()
+        else:
+            super().__setitem__(key, val)
+
+    def redraw(self):
+        self.delete('all')
+        width = self.winfo_width()
+        fill = int(width * self.value / 100)
+        if fill < 2:
+            return
+        h = self.HEIGHT
+        color = self.app.color(ACCENT)
+        r = h / 2
+        self.create_oval(0, 0, h, h, fill=color, outline=color)
+        if fill > h:
+            self.create_oval(fill - h, 0, fill, h, fill=color, outline=color)
+            self.create_rectangle(r, 0, fill - r, h, fill=color, outline=color)
+
+
 class DarkScrollbar(tk.Canvas):
     """Slim fully dark scrollbar: no light Windows arrow buttons."""
     def __init__(self, parent, command, **kwargs):
@@ -2189,8 +2221,7 @@ class App(TkinterDnD.Tk):
 
         self.button(footer, 'About & Support', self.show_about).pack(side='right', padx=(8, 0))
         # Thin update bar: same colour as the window when idle, so it stays invisible.
-        self.update_bar = ttk.Progressbar(self.wrapper, maximum=100, mode='determinate',
-                                          style='Update.Horizontal.TProgressbar')
+        self.update_bar = RoundBar(self, self.wrapper)
         self.update_bar.pack(fill='x', pady=(6, 0))
 
     def show_about(self):

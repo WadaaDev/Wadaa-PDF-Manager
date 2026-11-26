@@ -27,6 +27,10 @@ SetupIconFile=assets\icon.ico
 OutputDir=installer
 OutputBaseFilename=Wadaa PDF Manager Setup v{#AppVersion}
 WizardStyle=modern
+VersionInfoVersion={#AppVersion}.0
+VersionInfoProductVersion={#AppVersion}.0
+VersionInfoProductName={#AppName}
+VersionInfoCompany=WadaaDev
 
 [Files]
 Source: "dist\{#AppName}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
